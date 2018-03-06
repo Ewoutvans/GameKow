@@ -1,7 +1,7 @@
 package cloud.zeroprox.gamekow.commands;
 
 import cloud.zeroprox.gamekow.GameKow;
-import cloud.zeroprox.gamekow.game.Game;
+import cloud.zeroprox.gamekow.game.IGame;
 import org.spongepowered.api.command.CommandResult;
 import org.spongepowered.api.command.CommandSource;
 import org.spongepowered.api.command.args.CommandContext;
@@ -18,8 +18,8 @@ public class ListCmd implements CommandExecutor {
     @Override
     public CommandResult execute(CommandSource src, CommandContext args) {
         List<Text> arenas = new ArrayList<>();
-        for (Game game: GameKow.getGameManager().games) {
-            arenas.add(Text.builder(game.getName()).color(game.getMode() == GameKow.Mode.DISABLED ? TextColors.RED : TextColors.GREEN).onClick(TextActions.runCommand("/kow join " + game.getName())).build());
+        for (IGame IGame : GameKow.getGameManager().iGames) {
+            arenas.add(Text.builder(IGame.getName()).color(IGame.getMode() == GameKow.Mode.DISABLED ? TextColors.RED : TextColors.GREEN).onClick(TextActions.runCommand("/kow join " + IGame.getName())).build());
         }
 
         PaginationList.builder()

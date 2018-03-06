@@ -1,6 +1,7 @@
 package cloud.zeroprox.gamekow.game;
 
 import cloud.zeroprox.gamekow.GameKow;
+import cloud.zeroprox.gamekow.stats.LastHit;
 import cloud.zeroprox.gamekow.stats.PlayerStats;
 import com.google.common.collect.Iterables;
 import org.spongepowered.api.Sponge;
@@ -23,7 +24,6 @@ import org.spongepowered.api.scoreboard.critieria.Criteria;
 import org.spongepowered.api.scoreboard.displayslot.DisplaySlots;
 import org.spongepowered.api.scoreboard.objective.Objective;
 import org.spongepowered.api.text.Text;
-import org.spongepowered.api.text.chat.ChatType;
 import org.spongepowered.api.text.chat.ChatTypes;
 import org.spongepowered.api.text.format.TextColor;
 import org.spongepowered.api.text.format.TextColors;
@@ -33,17 +33,18 @@ import org.spongepowered.api.world.World;
 
 import java.util.*;
 
-public class Game {
+public class GameClassic implements IGame {
 
     private String name;
-    private GameKow.Mode mode = GameKow.Mode.DISABLED;
+    private GameKow.Mode mode;
     private Transform<World> lobby;
     private UUID world;
     private Random random = new Random();
     private AABB area;
     private AABB playground;
-    private Map<UUID, PlayerStats> activePlayers = new HashMap<>();
-    private int limit;
+    Map<UUID, PlayerStats> activePlayers = new HashMap<>();
+    int limit;
+
     private ServerBossBar serverBossBar = ServerBossBar.builder()
             .color(BossBarColors.YELLOW)
             .createFog(false)
@@ -55,7 +56,7 @@ public class Game {
             .build();
     private Map<TextColor, Transform<World>> spawns;
 
-    public Game(String name, Transform<World> lobby, AABB area, AABB playground, Map<TextColor, Transform<World>> spawns) {
+    public GameClassic(String name, Transform<World> lobby, AABB area, AABB playground, Map<TextColor, Transform<World>> spawns) {
         this.name = name;
         this.lobby = lobby;
         this.area = area;
@@ -66,27 +67,32 @@ public class Game {
         this.spawns = spawns;
     }
 
+    @Override
     public Collection<UUID> getAllPlayers() {
         return this.activePlayers.keySet();
     }
 
+    @Override
     public String getName() {
         return name;
     }
 
-    public boolean isInside(Location<World> location) {
+    @Override
+    public boolean isInsideArea(Location<World> location) {
         return area.contains(location.getX(), location.getY(), location.getZ()) && world.equals(location.getExtent().getUniqueId());
     }
 
-    public Transform getLobby() {
+    @Override
+    public Transform<World> getLobby() {
         return lobby;
     }
 
+    @Override
     public void addPlayer(Player player) {
-        if (GameKow.getGameManager().isPlayerActive(player)) {
+        /*if (GameKow.getGameManager().isPlayerActive(player)) {
             player.sendMessage(Text.of(TextColors.RED, "You are already in a game"));
             return;
-        }
+        }*/
         if (this.activePlayers.size() >= this.limit) {
             player.sendMessage(Text.of(TextColors.RED, "You can't join, the game is at a limit"));
             return;
@@ -107,42 +113,60 @@ public class Game {
                 PotionEffect.builder().amplifier(1).duration(20 * 60 * 60 * 60).particles(false).potionType(PotionEffectTypes.NIGHT_VISION).build()));
         player.sendMessage(Text.of(TextColors.GREEN, "You have joined the game"));
         ((PlayerInventory) player.getInventory()).getHotbar().setSelectedSlotIndex(0);
-        PlayerStats playerStats = new PlayerStats(player.getUniqueId(), getFreeColor());
 
-        player.setTransform(this.spawns.get(playerStats.getColor()));
+        PlayerStats playerStats;
+        if (this.activePlayers.containsKey(player.getUniqueId())) {
+            playerStats = this.activePlayers.get(player.getUniqueId());
+        } else {
+            playerStats = new PlayerStats(player.getUniqueId(), getFreeColor());
+            this.activePlayers.put(player.getUniqueId(), playerStats);
+        }
+
+        player.setTransform(this.getRandomSpawn());
         player.setItemInHand(HandTypes.MAIN_HAND, ItemStack.builder().itemType(ItemTypes.STICK).quantity(1).add(Keys.ITEM_ENCHANTMENTS, Arrays.asList(Enchantment.of(EnchantmentTypes.KNOCKBACK, 1))).build());
         ((PlayerInventory) player.getInventory()).getEquipment().set(EquipmentTypes.HEADWEAR, ItemStack.builder().itemType(ItemTypes.LEATHER_HELMET).add(Keys.COLOR, playerStats.getColor().getColor()).add(Keys.ITEM_ENCHANTMENTS, Arrays.asList(Enchantment.of(EnchantmentTypes.AQUA_AFFINITY, 1), Enchantment.of(EnchantmentTypes.UNBREAKING, 10), Enchantment.of(EnchantmentTypes.RESPIRATION, 10))).add(Keys.UNBREAKABLE, true).build());
 
-        this.activePlayers.put(player.getUniqueId(), playerStats);
         this.serverBossBar.addPlayer(player);
-        this.showStats(ChatTypes.SYSTEM, player);
+        this.showStats(player);
     }
 
-    public void leavePlayer(Player player) {
+    @Override
+    public void leavePlayer(Player player, boolean resetStats) {
+        this.getPlayerStats(player).ifPresent(PlayerStats::reset);
         player.getInventory().clear();
         player.offer(Keys.GAME_MODE, GameModes.SURVIVAL);
         player.offer(Keys.POTION_EFFECTS, new ArrayList<>());
         player.setScoreboard(null);
-        player.setLocation(new Location<>(Sponge.getServer().getWorld(this.world).get(), Sponge.getServer().getWorldProperties(this.world).get().getSpawnPosition()));
+        player.setTransform(this.getLobby());
         this.activePlayers.remove(player.getUniqueId());
         this.serverBossBar.removePlayer(player);
 
     }
 
-
-    public PlayerStats getPlayerStats(Player player) {
-        return this.activePlayers.get(player.getUniqueId());
+    @Override
+    public void clearScores() {
+        for (PlayerStats stats : this.activePlayers.values()) {
+            stats.reset();
+        }
     }
 
-    public PlayerStats getPlayerStats(UUID uuid) {
-        return this.activePlayers.get(uuid);
+
+    @Override
+    public Optional<PlayerStats> getPlayerStats(Player player) {
+        return this.getPlayerStats(player.getUniqueId());
     }
 
-    public void scoreboardUpdate(Player player) {
+    @Override
+    public Optional<PlayerStats> getPlayerStats(UUID uuid) {
+        if (this.activePlayers.containsKey(uuid)) {
+            return Optional.of(this.activePlayers.get(uuid));
+        }
+        return Optional.empty();
     }
 
-    public void showStats(ChatType chatType, Player player) {
-        PlayerStats playerStats = getPlayerStats(player);
+    @Override
+    public void showStats(Player player) {
+        PlayerStats playerStats = getPlayerStats(player).get();
 
         String name = player.getUniqueId().toString();
 
@@ -175,9 +199,10 @@ public class Game {
                 .build());
     }
 
+    @Override
     public void showStatsOfPlayer(Player player, Player target) {
         if (this.activePlayers.containsKey(target.getUniqueId())) {
-            PlayerStats playerStats = getPlayerStats(target);
+            PlayerStats playerStats = getPlayerStats(target).get();
 
             player.sendMessage(ChatTypes.ACTION_BAR,
                     Text.builder()
@@ -192,11 +217,13 @@ public class Game {
         }
     }
 
+    @Override
     public boolean isInsidePlayGround(Player player) {
         return this.playground.contains(player.getLocation().getX(), player.getLocation().getY(), player.getLocation().getZ());
     }
 
 
+    @Override
     public TextColor getFreeColor() {
         return Iterables.filter(this.spawns.keySet(), this::isColorNotInUse).iterator().next();
     }
@@ -206,15 +233,50 @@ public class Game {
 
     }
 
-    public Transform<World> getSpawn(Player player) {
-        return this.spawns.get(this.activePlayers.get(player.getUniqueId()).getColor());
+    @Override
+    public Transform<World> getRandomSpawn() {
+        return this.spawns.values().toArray(new Transform[]{})[this.random.nextInt(this.spawns.size())];
     }
 
+    @Override
     public GameKow.Mode getMode() {
         return this.mode;
     }
 
+    @Override
     public void toggleStatus() {
         this.mode = this.mode.equals(GameKow.Mode.READY) ? GameKow.Mode.DISABLED : GameKow.Mode.READY;
+    }
+
+    @Override
+    public void manageLoss(Player player, GameKow.LossType lossType) {
+        PlayerStats playerStats = this.getPlayerStats(player).get();
+
+        this.showStats(player);
+        player.setItemInHand(HandTypes.MAIN_HAND, ItemStack.builder().itemType(ItemTypes.STICK).quantity(1).add(Keys.ITEM_ENCHANTMENTS, Arrays.asList(Enchantment.of(EnchantmentTypes.KNOCKBACK, 1))).build());
+        ((PlayerInventory) player.getInventory()).getEquipment().set(EquipmentTypes.HEADWEAR, ItemStack.builder().itemType(ItemTypes.LEATHER_HELMET).add(Keys.COLOR, playerStats.getColor().getColor()).add(Keys.ITEM_ENCHANTMENTS, Arrays.asList(Enchantment.of(EnchantmentTypes.AQUA_AFFINITY, 1), Enchantment.of(EnchantmentTypes.UNBREAKING, 10), Enchantment.of(EnchantmentTypes.RESPIRATION, 10))).add(Keys.UNBREAKABLE, true).build());
+
+        if (this.getAllPlayers().size() > 1) {
+            this.showStats(player);
+            playerStats.addDeaths(1);
+            playerStats.addPoints(-4);
+            player.offer(Keys.FALL_DISTANCE, 0f);
+            player.offer(Keys.FALL_TIME, 0);
+            LastHit lastHit = playerStats.getLastHit();
+            if (lastHit.getLastHit().isPresent()) {
+                Optional<PlayerStats> playerStatsLastHitOptional = this.getPlayerStats(lastHit.getLastHit().get());
+                if (playerStatsLastHitOptional.isPresent()) {
+                    PlayerStats playerStatsLastHit = playerStatsLastHitOptional.get();
+                    playerStatsLastHit.addKills(1);
+                    playerStatsLastHit.addPoints(10);
+                    Optional<Player> hitter = Sponge.getServer().getPlayer(lastHit.getLastHit().get());
+                    if (hitter.isPresent()) {
+                        hitter.get().sendMessage(ChatTypes.ACTION_BAR, Text.of(TextColors.YELLOW, "+1 kill ", TextColors.GRAY, "[killed ", player.getName(), "]"));
+                        player.sendMessage(ChatTypes.ACTION_BAR, Text.of(TextColors.DARK_RED, "+1 death ", TextColors.GRAY, "[by ", hitter.get().getName(), "]"));
+                    }
+                    playerStats.setLastNull();
+                }
+            }
+        }
     }
 }

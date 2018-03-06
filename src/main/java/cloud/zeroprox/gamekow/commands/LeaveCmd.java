@@ -1,7 +1,7 @@
 package cloud.zeroprox.gamekow.commands;
 
 import cloud.zeroprox.gamekow.GameKow;
-import cloud.zeroprox.gamekow.game.Game;
+import cloud.zeroprox.gamekow.game.IGame;
 import org.spongepowered.api.command.CommandException;
 import org.spongepowered.api.command.CommandResult;
 import org.spongepowered.api.command.CommandSource;
@@ -21,12 +21,12 @@ public class LeaveCmd implements CommandExecutor {
         }
         Player player = (Player) src;
 
-        Optional<Game> game = GameKow.getGameManager().getPlayerGame(player);
+        Optional<IGame> game = GameKow.getGameManager().getPlayerGame(player);
         if (!game.isPresent()) {
             throw new CommandException(Text.of(TextColors.RED, "You are not in a game"));
         }
 
-        game.get().leavePlayer(player);
+        game.get().leavePlayer(player, args.hasAny("f"));
 
         return CommandResult.success();
     }

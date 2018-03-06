@@ -1,7 +1,7 @@
 package cloud.zeroprox.gamekow.commands;
 
 import cloud.zeroprox.gamekow.GameKow;
-import cloud.zeroprox.gamekow.game.Game;
+import cloud.zeroprox.gamekow.game.IGame;
 import org.spongepowered.api.command.CommandException;
 import org.spongepowered.api.command.CommandResult;
 import org.spongepowered.api.command.CommandSource;
@@ -26,7 +26,7 @@ public class JoinCmd implements CommandExecutor {
             throw new CommandException(Text.of(TextColors.RED, "You need a empty inventory to join"));
         }
         String gameName = args.<String>getOne(Text.of("game")).orElse(GameKow.getGameManager().getDefaultName());
-        Optional<Game> game = GameKow.getGameManager().getGame(gameName);
+        Optional<IGame> game = GameKow.getGameManager().getGame(gameName);
         if (!game.isPresent()) {
             src.sendMessage(Text.of(TextColors.RED, "No game found for name ", gameName));
             return CommandResult.empty();

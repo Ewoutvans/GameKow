@@ -11,7 +11,8 @@ import org.spongepowered.api.text.Text;
 
 import java.util.Optional;
 
-public class RemoveCmd implements CommandExecutor {
+public class ClearStatsCmd implements CommandExecutor {
+
     @Override
     public CommandResult execute(CommandSource src, CommandContext args) throws CommandException {
         Optional<String> gameName = args.getOne(Text.of("game"));
@@ -19,11 +20,8 @@ public class RemoveCmd implements CommandExecutor {
             throw new CommandException(Text.of("Game not found"));
         }
         Optional<IGame> gameOptional = GameKow.getGameManager().getGame(gameName.get());
-        if (!gameOptional.isPresent()) {
-            throw new CommandException(Text.of("Game not found"));
-        }
-        GameKow.getInstance().removeArena(gameOptional.get());
-        src.sendMessage(Text.of("Removed game"));
+        gameOptional.ifPresent(game -> game.clearScores());
+        src.sendMessage(Text.of("Game scores cleared."));
         return CommandResult.success();
     }
 }

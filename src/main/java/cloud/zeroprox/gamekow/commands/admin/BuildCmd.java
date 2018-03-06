@@ -58,7 +58,9 @@ public class BuildCmd implements CommandExecutor {
         if (adminType.equals(GameKow.AdminBuildTypes.NAME)) {
             Optional<String> name = args.getOne(Text.of("name"));
             this.gameSerialize = new GameSerialize();
+            this.gameSerialize.gameType = GameKow.GameType.CLASSIC;
             this.gameSerialize.name = name.orElse(new Random().nextLong() + "");
+            this.gameSerialize.spawns = new ArrayList<>();
             showProgress(src);
             return CommandResult.success();
         }
@@ -67,28 +69,17 @@ public class BuildCmd implements CommandExecutor {
             src.sendMessage(Text.of(TextColors.GREEN, "Setup stopped"));
             return CommandResult.success();
         }
+        if (adminType.equals(GameKow.AdminBuildTypes.TYPE)) {
+            Optional<String> name = args.getOne(Text.of("name"));
+            this.gameSerialize.gameType = GameKow.GameType.valueOf(name.orElse("CLASSIC"));
+        }
         Player player = (Player)src;
         switch (adminType) {
             case LOBBY:
                 gameSerialize.lobby = player.getTransform();
                 break;
-            case RED:
-                gameSerialize.red = player.getTransform();
-                break;
-            case GREEN:
-                gameSerialize.green = player.getTransform();
-                break;
-            case ORANGE:
-                gameSerialize.orange = player.getTransform();
-                break;
-            case YELLOW:
-                gameSerialize.yellow = player.getTransform();
-                break;
-            case PURPLE:
-                gameSerialize.purple = player.getTransform();
-                break;
-            case BLUE:
-                gameSerialize.blue = player.getTransform();
+            case SPAWN:
+                gameSerialize.spawns.add(player.getTransform());
                 break;
             case CORNER_PLAY_1:
                 gameSerialize.corner_play_1 = player.getLocation();
@@ -118,23 +109,35 @@ public class BuildCmd implements CommandExecutor {
                 switch (type) {
                     case NAME: o = gameSerialize.name; break;
                     case LOBBY: o = gameSerialize.lobby; break;
-                    case RED: o = gameSerialize.red; break;
-                    case GREEN: o = gameSerialize.green; break;
-                    case ORANGE: o = gameSerialize.orange; break;
-                    case YELLOW: o = gameSerialize.yellow; break;
-                    case PURPLE: o = gameSerialize.purple; break;
-                    case BLUE: o = gameSerialize.blue; break;
+                    case SPAWN: o = gameSerialize.spawns; break;
                     case CORNER_PLAY_1: o = gameSerialize.corner_play_1; break;
                     case CORNER_PLAY_2: o = gameSerialize.corner_play_2; break;
                     case CORNER_AREA_1: o = gameSerialize.corner_area_1; break;
                     case CORNER_AREA_2: o = gameSerialize.corner_area_2; break;
                     default: break;
                 }
+                if (type.equals(GameKow.AdminBuildTypes.TYPE)) {
+                    textArray.add(
+                            Text.builder("Type (current: " + gameSerialize.gameType + "): ").color(TextColors.GREEN)
+                                    .append(Text.builder("CLASSIC ").onClick(TextActions.runCommand("/kow admin build TYPE CLASSIC")).build())
+                                    .append(Text.builder("FREEJOIN ").onClick(TextActions.runCommand("/kow admin build TYPE FREEJOIN")).build())
+                                    .build());
+                    continue;
+                }
                 if (type.equals(GameKow.AdminBuildTypes.STOP)) continue;;
                 if (o == null) {
                     textArray.add(Text.builder(type.name() + ": --").color(TextColors.RED).onClick(TextActions.runCommand("/kow admin build " + type.name())).build());
                 } else {
-                    textArray.add(Text.builder(type.name() + ": Okay").color(TextColors.GREEN).build());
+                    if (o instanceof List) {
+                        List list = (List) o;
+                        if (list.size() >= 2) {
+                            textArray.add(Text.builder(type.name() + ": Okay (" + ((List) o).size() + ")").color(TextColors.GREEN).onClick(TextActions.runCommand("/kow admin build " + type.name())).build());
+                        } else {
+                            textArray.add(Text.builder(type.name() + ": -- (" + ((List) o).size() + ")").color(TextColors.RED).onClick(TextActions.runCommand("/kow admin build " + type.name())).build());
+                        }
+                    } else {
+                        textArray.add(Text.builder(type.name() + ": Okay").color(TextColors.GREEN).onClick(TextActions.runCommand("/kow admin build " + type.name())).build());
+                    }
                 }
             }
         }

@@ -1,7 +1,7 @@
 package cloud.zeroprox.gamekow.commands.admin;
 
 import cloud.zeroprox.gamekow.GameKow;
-import cloud.zeroprox.gamekow.game.Game;
+import cloud.zeroprox.gamekow.game.IGame;
 import org.spongepowered.api.command.CommandException;
 import org.spongepowered.api.command.CommandResult;
 import org.spongepowered.api.command.CommandSource;
@@ -18,7 +18,7 @@ public class DisableCmd implements CommandExecutor {
         if (!gameName.isPresent()) {
             throw new CommandException(Text.of("Game not found"));
         }
-        Optional<Game> gameOptional = GameKow.getGameManager().getGame(gameName.get());
+        Optional<IGame> gameOptional = GameKow.getGameManager().getGame(gameName.get());
         gameOptional.ifPresent(game -> game.toggleStatus());
         src.sendMessage(Text.of("Game status toggled."));
         return CommandResult.success();

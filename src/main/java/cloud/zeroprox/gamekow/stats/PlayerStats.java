@@ -12,6 +12,7 @@ public class PlayerStats {
     private int kills, deaths, hitsGiven, hitsTaken, points;
     private TextColor color;
     private long started;
+    private long left;
     private LastHit lastHit;
     private UUID owner;
 
@@ -72,11 +73,6 @@ public class PlayerStats {
         return color;
     }
 
-    public void setColor(TextColor color) {
-        this.color = color;
-    }
-
-
     public LastHit getLastHit() {
         return lastHit;
     }
@@ -93,5 +89,22 @@ public class PlayerStats {
 
     public String getName() {
         return Sponge.getServer().getPlayer(this.owner).map(Player::getName).orElse("unknown");
+    }
+
+    public long getLeft() {
+        return left;
+    }
+
+    public void setLeft(long left) {
+        this.left = left;
+    }
+
+    public void reset() {
+        this.deaths = 0;
+        this.hitsGiven = 0;
+        this.hitsTaken = 0;
+        this.kills = 0;
+        this.points = 0;
+        this.lastHit.setLastHit(null);
     }
 }

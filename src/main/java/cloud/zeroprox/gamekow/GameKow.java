@@ -2,10 +2,13 @@ package cloud.zeroprox.gamekow;
 
 import cloud.zeroprox.gamekow.commands.*;
 import cloud.zeroprox.gamekow.commands.admin.BuildCmd;
+import cloud.zeroprox.gamekow.commands.admin.ClearStatsCmd;
 import cloud.zeroprox.gamekow.commands.admin.DisableCmd;
 import cloud.zeroprox.gamekow.commands.admin.RemoveCmd;
-import cloud.zeroprox.gamekow.game.Game;
+import cloud.zeroprox.gamekow.game.GameClassic;
+import cloud.zeroprox.gamekow.game.GameFreeJoin;
 import cloud.zeroprox.gamekow.game.GameManager;
+import cloud.zeroprox.gamekow.game.IGame;
 import cloud.zeroprox.gamekow.utils.GameSerialize;
 import cloud.zeroprox.gamekow.utils.TransformWorldSerializer;
 import com.google.common.reflect.TypeToken;
@@ -23,13 +26,12 @@ import org.spongepowered.api.command.spec.CommandSpec;
 import org.spongepowered.api.config.DefaultConfig;
 import org.spongepowered.api.entity.Transform;
 import org.spongepowered.api.event.Listener;
+import org.spongepowered.api.event.command.TabCompleteEvent;
 import org.spongepowered.api.event.game.GameReloadEvent;
 import org.spongepowered.api.event.game.state.GameStartedServerEvent;
 import org.spongepowered.api.plugin.Plugin;
 import org.spongepowered.api.text.Text;
 import org.spongepowered.api.text.format.TextColor;
-import org.spongepowered.api.text.format.TextColors;
-import org.spongepowered.api.world.Location;
 import org.spongepowered.api.world.World;
 
 import java.io.IOException;
@@ -64,6 +66,7 @@ public class GameKow {
 
     CommandSpec leaveCmd = CommandSpec.builder()
             .description(Text.of("Leave game"))
+            .arguments(GenericArguments.flags().flag("f").buildWith(GenericArguments.none()))
             .permission("gamekow.leave")
             .executor(new LeaveCmd())
             .build();
@@ -89,6 +92,12 @@ public class GameKow {
             .executor(new RemoveCmd())
             .build();
 
+    CommandSpec adminClearStatsCmd = CommandSpec.builder()
+            .description(Text.of("Clear stats"))
+            .arguments(GenericArguments.onlyOne(GenericArguments.string(Text.of("game"))))
+            .executor(new ClearStatsCmd())
+            .build();
+
     CommandSpec adminCmd = CommandSpec.builder()
             .description(Text.of("Area management"))
             .permission("gamekow.admin")
@@ -96,6 +105,7 @@ public class GameKow {
             .child(adminBuildCmd, "build")
             .child(adminToggleCmd, "toggle")
             .child(adminRemoveCmd, "remove")
+            .child(adminClearStatsCmd, "clearstats")
             .build();
 
     CommandSpec listCmd = CommandSpec.builder()
@@ -154,25 +164,33 @@ public class GameKow {
             configManager.save(rootNode);
             loadConfig();
         } else {
-            getGameManager().games.clear();
+            getGameManager().iGames.clear();
             List<GameSerialize> gameSerializeList = rootNode.getNode("areas").getList(TypeToken.of(GameSerialize.class));
             for (GameSerialize gameSerialize : gameSerializeList) {
+                TextColor[] colors = Sponge.getRegistry().getAllOf(TextColor.class).toArray(new TextColor[]{});
                 Map<TextColor, Transform<World>> spawns = new HashMap<>();
-                spawns.put(TextColors.RED, gameSerialize.red);
-                spawns.put(TextColors.GREEN, gameSerialize.green);
-                spawns.put(TextColors.GOLD, gameSerialize.orange);
-                spawns.put(TextColors.YELLOW, gameSerialize.yellow);
-                spawns.put(TextColors.BLUE, gameSerialize.blue);
-                spawns.put(TextColors.LIGHT_PURPLE, gameSerialize.purple);
-                Game game = new Game(gameSerialize.name,
-                        gameSerialize.lobby,
-                        gameSerialize.area.toAABB(),
-                        gameSerialize.playground.toAABB(),
-                        spawns
-                );
-                getGameManager().games.add(game);
+                for (Transform<World> spawn : gameSerialize.spawns) {
+                    spawns.put(colors[spawns.size()], spawn);
+                }
+                IGame iGame = null;
+                if (gameSerialize.gameType == GameType.CLASSIC) {
+                     iGame = new GameClassic(gameSerialize.name,
+                            gameSerialize.lobby,
+                            gameSerialize.area.toAABB(),
+                            gameSerialize.playground.toAABB(),
+                            spawns
+                    );
+                } else if (gameSerialize.gameType == GameType.FREEJOIN) {
+                    iGame = new GameFreeJoin(gameSerialize.name,
+                            gameSerialize.lobby,
+                            gameSerialize.area.toAABB(),
+                            gameSerialize.playground.toAABB(),
+                            spawns
+                    );
+                }
+                getGameManager().iGames.add(iGame);
             }
-            logger.info("Loaded: " + getGameManager().games.size() + " games");
+            logger.info("Loaded: " + getGameManager().iGames.size() + " games");
         }
     }
 
@@ -196,12 +214,12 @@ public class GameKow {
         }
     }
 
-    public void removeArena(Game game) {
+    public void removeArena(IGame iGame) {
         try {
             List<GameSerialize> gameSerializeList = rootNode.getNode("areas").getList(TypeToken.of(GameSerialize.class));
             List<GameSerialize> gameList = new ArrayList<>();
             gameList.addAll(gameSerializeList);
-            gameList.removeIf(gameSerialize -> gameSerialize.name.equalsIgnoreCase(game.getName()));
+            gameList.removeIf(gameSerialize -> gameSerialize.name.equalsIgnoreCase(iGame.getName()));
             rootNode.getNode("areas").setValue(new TypeToken<List<GameSerialize>>(){}, gameList);
             configManager.save(rootNode);
             loadConfig();
@@ -213,10 +231,18 @@ public class GameKow {
     }
 
     public enum Mode {
-        DISABLED, READY;
+        DISABLED, READY
+    }
+
+    public enum LossType {
+        FALL_OUTSIDE, FALL_DAMAGE
     }
 
     public enum AdminBuildTypes {
-        NAME, LOBBY, RED, GREEN, ORANGE, YELLOW, PURPLE, BLUE, CORNER_PLAY_1, CORNER_PLAY_2, CORNER_AREA_1, CORNER_AREA_2, SAVE, STOP
+        NAME, LOBBY, SPAWN, CORNER_PLAY_1, CORNER_PLAY_2, CORNER_AREA_1, CORNER_AREA_2, SAVE, STOP, TYPE
+    }
+
+    public enum GameType {
+        CLASSIC, FREEJOIN
     }
 }

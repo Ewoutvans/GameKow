@@ -24,6 +24,7 @@ public class AdminCmd implements CommandExecutor {
                                 Text.builder("Stop setup").color(TextColors.GREEN).onClick(TextActions.suggestCommand("/kow admin build stop")).build(),
                                 Text.builder("Resume setup").color(TextColors.GREEN).onClick(TextActions.runCommand("/kow admin build")).build(),
                                 Text.builder("Disable area").color(TextColors.GREEN).onClick(TextActions.suggestCommand("/kow admin toggle <name>")).build(),
+                                Text.builder("Clear Stats").color(TextColors.GREEN).onClick(TextActions.suggestCommand("/kow admin clearstats <name>")).build(),
                                 Text.builder("Remove area").color(TextColors.GREEN).onClick(TextActions.suggestCommand("/kow admin remove <name>")).build()
                                 )
                 )
