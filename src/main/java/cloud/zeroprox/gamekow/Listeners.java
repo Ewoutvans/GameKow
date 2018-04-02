@@ -17,12 +17,15 @@ import org.spongepowered.api.event.item.inventory.ClickInventoryEvent;
 import org.spongepowered.api.event.item.inventory.DropItemEvent;
 import org.spongepowered.api.event.network.ClientConnectionEvent;
 import org.spongepowered.api.text.Text;
+import org.spongepowered.api.text.action.TextActions;
 import org.spongepowered.api.text.format.TextColors;
 import org.spongepowered.api.world.extent.EntityUniverse;
 
 import java.util.*;
 
 public class Listeners {
+
+    WeakHashMap<UUID, Long> message = new WeakHashMap<>();
 
     @Listener
     public void onMoveEntityEvent(MoveEntityEvent event) {
@@ -38,8 +41,25 @@ public class Listeners {
                     event.setToTransform(iGame.getRandomSpawn());
                     iGame.manageLoss(player, GameKow.LossType.FALL_OUTSIDE);
                 }
+            } else {
+                Optional<IGame> optionalIGame = GameKow.getGameManager().getGameFromRegion(player);
+                if (optionalIGame.isPresent()) {
+                    if (message.containsKey(player.getUniqueId())) {
+                        if (System.currentTimeMillis() - message.get(player.getUniqueId()) >= 3500) {
+                            sendJoinMessage(player, "/gamekow join " + optionalIGame.get().getName());
+                        }
+                    } else {
+                        sendJoinMessage(player, "/gamekow join " + optionalIGame.get().getName());
+                    }
+                }
             }
         }
+    }
+
+    private void sendJoinMessage(Player player, String cmd) {
+        message.put(player.getUniqueId(), System.currentTimeMillis());
+        player.sendMessage(Text.builder(Text.of(TextColors.GOLD), "Want to join? ").append(Text.of(TextColors.GREEN, "yes")).onClick(TextActions.runCommand(cmd)).build());
+
     }
 
     @Listener
@@ -111,9 +131,20 @@ public class Listeners {
         }
         Player player = (Player) event.getTargetEntity();
         Player attacker = (Player) source.getSource();
-        Optional<IGame> optionalGame = GameKow.getGameManager().getPlayerGame(player);
+        Optional<IGame> optionalGame = GameKow.getGameManager().getPlayerGame(attacker);
+        Optional<IGame> optionalGamePlayer = GameKow.getGameManager().getPlayerGame(player);
+        if (optionalGamePlayer.isPresent()) {
+            if (!optionalGamePlayer.get().containsPlayer(attacker)) {
+                event.setCancelled(true);
+                return;
+            }
+        }
         if (optionalGame.isPresent()) {
             IGame iGame = optionalGame.get();
+            if (!iGame.containsPlayer(player)) {
+                event.setCancelled(true);
+                return;
+            }
             if (!iGame.isInsidePlayGround(player) || !iGame.isInsidePlayGround(attacker)) {
                 event.setCancelled(true);
                 attacker.sendMessage(Text.of(TextColors.RED, "Forbidden to hit if not in playground."));

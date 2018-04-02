@@ -47,4 +47,6 @@ public interface IGame {
     void leavePlayer(Player player, boolean resetStats);
 
     void clearScores();
+
+    boolean containsPlayer(Player attacker);
 }

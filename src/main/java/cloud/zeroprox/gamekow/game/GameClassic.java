@@ -150,6 +150,11 @@ public class GameClassic implements IGame {
         }
     }
 
+    @Override
+    public boolean containsPlayer(Player attacker) {
+        return this.activePlayers.containsKey(attacker.getUniqueId());
+    }
+
 
     @Override
     public Optional<PlayerStats> getPlayerStats(Player player) {
